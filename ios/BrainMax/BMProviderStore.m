@@ -28,9 +28,36 @@
     return [dir stringByAppendingPathComponent:@"provedores.json"];
 }
 
+// Cria os provedores padrão (já configurados, só falta a chave) na 1ª execução.
+- (NSArray *)provedoresPadrao {
+    NSMutableArray *arr = [NSMutableArray array];
+    NSArray *padrao = @[
+        @{@"nome": @"OpenRouter", @"baseURL": @"https://openrouter.ai/api/v1", @"modelo": @"openrouter/auto", @"aceitaImagem": @NO},
+        @{@"nome": @"Groq", @"baseURL": @"https://api.groq.com/openai/v1", @"modelo": @"llama-3.3-70b-versatile", @"aceitaImagem": @NO},
+        @{@"nome": @"NVIDIA Build", @"baseURL": @"https://integrate.api.nvidia.com/v1", @"modelo": @"meta/llama-3.3-70b-instruct", @"aceitaImagem": @NO},
+        @{@"nome": @"AMD Token Lab", @"baseURL": @"https://api.tokenlab.amd.com/v1", @"modelo": @"DeepSeek-V4.1-Flash", @"aceitaImagem": @NO},
+    ];
+    for (NSDictionary *d in padrao) {
+        BMProvider *p = [[BMProvider alloc] init];
+        p.nome = d[@"nome"];
+        p.baseURL = d[@"baseURL"];
+        p.modelo = d[@"modelo"];
+        p.chave = @"";
+        p.aceitaImagem = [d[@"aceitaImagem"] boolValue];
+        [arr addObject:p];
+    }
+    return arr;
+}
+
 - (void)carregar {
     NSString *path = [self arquivoProvedores];
-    if (![[NSFileManager defaultManager] fileExistsAtPath:path]) return;
+    if (![[NSFileManager defaultManager] fileExistsAtPath:path]) {
+        // Primeira execução: popula com os provedores padrão.
+        NSArray *padrao = [self provedoresPadrao];
+        [_provedores addObjectsFromArray:padrao];
+        [self salvar];
+        return;
+    }
     NSData *data = [NSData dataWithContentsOfFile:path];
     if (!data) return;
     id obj = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];

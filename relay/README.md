@@ -44,7 +44,7 @@ O relay escuta em `0.0.0.0:8890`. Porta configurável por `BRAINMAX_PORT`.
 | OpenRouter | `https://openrouter.ai/api/v1` |
 | Groq | `https://api.groq.com/openai/v1` |
 | NVIDIA Build | `https://integrate.api.nvidia.com/v1` |
-| AMD Token Lab | o endpoint que a sua conta AMD fornecer |
+| AMD Token Lab | `https://api.tokenlab.amd.com/v1` |
 
 ## Chaves de API
 

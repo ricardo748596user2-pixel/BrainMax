@@ -123,6 +123,36 @@
     [self.scroll addSubview:titulo];
     y += 34;
 
+    // Atalhos para preencher automaticamente os campos de um provedor conhecido.
+    UILabel *lblRapido = [[UILabel alloc] initWithFrame:CGRectMake(16, y, W - 32, 26)];
+    lblRapido.text = @"Preencher de um provedor:";
+    lblRapido.textColor = [UIColor lightGrayColor];
+    lblRapido.font = [UIFont systemFontOfSize:13];
+    [self.scroll addSubview:lblRapido];
+    y += 30;
+
+    NSArray *presets = @[
+        @{@"n": @"OpenRouter", @"b": @"https://openrouter.ai/api/v1", @"m": @"openrouter/auto"},
+        @{@"n": @"Groq", @"b": @"https://api.groq.com/openai/v1", @"m": @"llama-3.3-70b-versatile"},
+        @{@"n": @"NVIDIA", @"b": @"https://integrate.api.nvidia.com/v1", @"m": @"meta/llama-3.3-70b-instruct"},
+        @{@"n": @"AMD", @"b": @"https://api.tokenlab.amd.com/v1", @"m": @"DeepSeek-V4.1-Flash"},
+    ];
+    CGFloat btnW = (W - 32 - 18) / 4.0;
+    for (NSInteger i = 0; i < 4; i++) {
+        NSDictionary *p = presets[i];
+        UIButton *b = [UIButton buttonWithType:UIButtonTypeSystem];
+        b.frame = CGRectMake(16 + i * (btnW + 6), y, btnW, 40);
+        [b setTitle:p[@"n"] forState:UIControlStateNormal];
+        [b setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+        b.backgroundColor = [UIColor colorWithWhite:0.18 alpha:1.0];
+        b.layer.cornerRadius = 6;
+        b.titleLabel.font = [UIFont systemFontOfSize:14];
+        b.tag = i;
+        [b addTarget:self action:@selector(preencherPreset:) forControlEvents:UIControlEventTouchUpInside];
+        [self.scroll addSubview:b];
+    }
+    y += 48;
+
     self.fNome = [self campo:CGRectMake(16, y, W - 32, 44) placeholder:@"Nome (ex.: Groq)"];
     y += 52;
     self.fBaseURL = [self campo:CGRectMake(16, y, W - 32, 44) placeholder:@"Base URL (ex.: https://api.groq.com/openai/v1)"];
@@ -197,6 +227,22 @@
     [[BMProviderStore shared] setProvedorAtivoIndice:sender.tag];
     [self desenharLista];
     [self desenharFormulario];
+}
+
+// Preenche os campos do formulário com um provedor conhecido (tag = índice do preset).
+- (void)preencherPreset:(UIButton *)sender {
+    NSArray *presets = @[
+        @{@"n": @"OpenRouter", @"b": @"https://openrouter.ai/api/v1", @"m": @"openrouter/auto"},
+        @{@"n": @"Groq", @"b": @"https://api.groq.com/openai/v1", @"m": @"llama-3.3-70b-versatile"},
+        @{@"n": @"NVIDIA", @"b": @"https://integrate.api.nvidia.com/v1", @"m": @"meta/llama-3.3-70b-instruct"},
+        @{@"n": @"AMD", @"b": @"https://api.tokenlab.amd.com/v1", @"m": @"DeepSeek-V4.1-Flash"},
+    ];
+    NSInteger i = sender.tag;
+    if (i < 0 || i >= (NSInteger)presets.count) return;
+    NSDictionary *p = presets[i];
+    self.fNome.text = p[@"n"];
+    self.fBaseURL.text = p[@"b"];
+    self.fModelo.text = p[@"m"];
 }
 
 - (void)salvar:(id)sender {
