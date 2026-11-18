@@ -68,6 +68,10 @@
         for (id item in arr) {
             if ([item isKindOfClass:[NSDictionary class]]) {
                 BMProvider *p = [[BMProvider alloc] initWithDictionary:item];
+                // Se não tiver modelos salvos (provedor antigo), preenche com os padrão.
+                if (p.modelosDisponiveis.count == 0 && p.nome.length > 0) {
+                    p.modelosDisponiveis = [[BMProvider modelosPadraoParaProvedor:p.nome] mutableCopy];
+                }
                 [_provedores addObject:p];
             }
         }
