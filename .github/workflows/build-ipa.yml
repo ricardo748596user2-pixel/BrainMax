@@ -35,8 +35,8 @@ jobs:
       - name: Compile and package IPA
         run: |
           mkdir -p build/obj build/Payload/BrainMax.app
-          for source in main BMProvider BMProviderStore BMHistoryStore BMAPIClient BMProvidersController BMViewController; do clang --target=armv7-apple-ios9.3 -isysroot "$SDKROOT" -miphoneos-version-min=9.3 -arch armv7 -fobjc-arc -O2 -I ios/BrainMax -c "ios/BrainMax/$source.m" -o "build/obj/$source.o"; done
-          arm-apple-darwin11-ld64 -arch armv7 -platform_version ios 9.3 9.3 -syslibroot "$SDKROOT" -o build/Payload/BrainMax.app/BrainMax build/obj/main.o build/obj/BMProvider.o build/obj/BMProviderStore.o build/obj/BMHistoryStore.o build/obj/BMAPIClient.o build/obj/BMProvidersController.o build/obj/BMViewController.o -lSystem -framework Foundation -framework CoreFoundation -framework UIKit -framework CoreGraphics
+          for source in main BMAppDelegate BMProvider BMProviderStore BMHistoryStore BMAPIClient BMProvidersController BMViewController; do clang --target=armv7-apple-ios9.3 -isysroot "$SDKROOT" -miphoneos-version-min=9.3 -arch armv7 -fobjc-arc -O2 -I ios/BrainMax -c "ios/BrainMax/$source.m" -o "build/obj/$source.o"; done
+          arm-apple-darwin11-ld64 -arch armv7 -platform_version ios 9.3 9.3 -syslibroot "$SDKROOT" -o build/Payload/BrainMax.app/BrainMax build/obj/main.o build/obj/BMAppDelegate.o build/obj/BMProvider.o build/obj/BMProviderStore.o build/obj/BMHistoryStore.o build/obj/BMAPIClient.o build/obj/BMProvidersController.o build/obj/BMViewController.o -lSystem -framework Foundation -framework CoreFoundation -framework UIKit -framework CoreGraphics
           cp ios/Info.plist build/Payload/BrainMax.app/Info.plist
           cp ios/icons/*.png build/Payload/BrainMax.app/
           printf 'APPL????' > build/Payload/BrainMax.app/PkgInfo
