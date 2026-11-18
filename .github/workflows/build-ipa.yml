@@ -1,0 +1,64 @@
+name: Build Brain Max iOS 9
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'ios/**'
+      - '.github/workflows/build-ipa.yml'
+
+jobs:
+  ios9-armv7:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install cross-build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-15 lld-15 llvm-15 libxml2-dev libssl-dev libuuid1 uuid-dev cmake ninja-build git wget xz-utils autoconf automake libtool pkg-config zip python3 python3-pil
+      - name: Build Apple link tools
+        run: |
+          git clone --branch 1300.6.5 --depth 1 https://github.com/tpoechtrager/apple-libtapi.git
+          cd apple-libtapi && INSTALLPREFIX=/usr/local ./build.sh && sudo ./install.sh /usr/local && cd ..
+          git clone --branch main --depth 1 https://github.com/tpoechtrager/apple-libdispatch.git
+          cd apple-libdispatch && mkdir build && cd build && CC=clang CXX=clang++ cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local && make -j"$(nproc)" && sudo make install && cd ../..
+          git clone --branch master --depth 1 https://github.com/tpoechtrager/ldid.git
+          cd ldid && make INSTALLPREFIX=/usr/local -j"$(nproc)" install && cd ..
+          git clone --branch 1030.6.3-ld64-956.6 --depth 1 https://github.com/tpoechtrager/cctools-port.git
+          cd cctools-port/cctools && ./configure --target=arm-apple-darwin11 --prefix=/usr/local --with-libtapi=/usr/local --with-libdispatch=/usr/local --enable-ld64 && make -j"$(nproc)" && sudo make install && sudo cp ld64/src/ld/ld /usr/local/bin/arm-apple-darwin11-ld64
+      - name: Download iOS SDK
+        run: |
+          curl -L --retry 5 --fail https://github.com/GrowtopiaJaw/iPhoneOS-SDK/releases/download/v1.0/iPhoneOS9.3.sdk.zip -o sdk.zip
+          mkdir sdk && unzip -q sdk.zip -d sdk
+          echo "SDKROOT=$PWD/$(find sdk -type d -name iPhoneOS9.3.sdk -print -quit)" >> "$GITHUB_ENV"
+      - name: Compile and package IPA
+        run: |
+          mkdir -p build/obj build/Payload/BrainMax.app
+          for source in main BMProvider BMProviderStore BMHistoryStore BMAPIClient BMProvidersController BMViewController; do clang --target=armv7-apple-ios9.3 -isysroot "$SDKROOT" -miphoneos-version-min=9.3 -arch armv7 -fobjc-arc -O2 -I ios/BrainMax -c "ios/BrainMax/$source.m" -o "build/obj/$source.o"; done
+          arm-apple-darwin11-ld64 -arch armv7 -platform_version ios 9.3 9.3 -syslibroot "$SDKROOT" -o build/Payload/BrainMax.app/BrainMax build/obj/main.o build/obj/BMProvider.o build/obj/BMProviderStore.o build/obj/BMHistoryStore.o build/obj/BMAPIClient.o build/obj/BMProvidersController.o build/obj/BMViewController.o -lSystem -framework Foundation -framework CoreFoundation -framework UIKit -framework CoreGraphics
+          cp ios/Info.plist build/Payload/BrainMax.app/Info.plist
+          cp ios/icons/*.png build/Payload/BrainMax.app/
+          printf 'APPL????' > build/Payload/BrainMax.app/PkgInfo
+          chmod 755 build/Payload/BrainMax.app/BrainMax
+          ldid -Sios/entitlements.plist build/Payload/BrainMax.app/BrainMax
+          (cd build && zip -qr BrainMax-iOS9-armv7.ipa Payload)
+      - name: Verify artifact
+        run: |
+          python3 - <<'PY'
+          import hashlib, plistlib, zipfile
+          ipa = 'build/BrainMax-iOS9-armv7.ipa'
+          with zipfile.ZipFile(ipa) as z:
+              app = 'Payload/BrainMax.app/'
+              info = plistlib.loads(z.read(app + 'Info.plist'))
+              assert info['CFBundleIdentifier'] == 'com.ricardo.brainmax', info
+              assert info['MinimumOSVersion'] == '9.3', info
+              icons = info['CFBundleIcons~ipad']['CFBundlePrimaryIcon']['CFBundleIconFiles']
+              for name in icons:
+                  assert app + name + '.png' in z.namelist(), name
+          print('IPA=', ipa, 'SHA256=', hashlib.sha256(open(ipa,'rb').read()).hexdigest())
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BrainMax-iOS9-armv7
+          path: build/BrainMax-iOS9-armv7.ipa

@@ -1,0 +1,5 @@
+backups/
+node_modules/
+*.ipa
+*.deb
+.DS_Store
