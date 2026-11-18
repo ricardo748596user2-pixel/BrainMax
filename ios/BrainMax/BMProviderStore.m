@@ -44,6 +44,7 @@
         p.modelo = d[@"modelo"];
         p.chave = @"";
         p.aceitaImagem = [d[@"aceitaImagem"] boolValue];
+        p.modelosDisponiveis = [[BMProvider modelosPadraoParaProvedor:p.nome] mutableCopy];
         [arr addObject:p];
     }
     return arr;

@@ -9,9 +9,14 @@
 @property(nonatomic, copy) NSString *modelo;    // id do modelo (ex.: "llama-3.3-70b-versatile")
 @property(nonatomic, copy) NSString *chave;     // API key (Bearer)
 @property(nonatomic, assign) BOOL aceitaImagem; // se o modelo aceita input de imagem
+// Modelos disponíveis (gratuitos) deste provedor, para seleção rápida.
+@property(nonatomic, strong) NSMutableArray *modelosDisponiveis;
 
 - (instancetype)initWithDictionary:(NSDictionary *)dict;
 - (NSDictionary *)toDictionary;
+
+// Modelos gratuitos conhecidos de um provedor (pelo nome).
++ (NSArray *)modelosPadraoParaProvedor:(NSString *)nomeProvedor;
 
 // Endpoint /chat/completions completo
 - (NSString *)endpoint;

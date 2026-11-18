@@ -9,11 +9,12 @@ static NSString * const kBMTileColor = @"#0F172A";
 static NSString * const kBMCardColor = @"#111827";
 static NSString * const kBMAccentColor = @"#0D9488";
 
-@interface BMViewController () <UITextViewDelegate, UIImagePickerControllerDelegate, UINavigationControllerDelegate>
+@interface BMViewController () <UITextViewDelegate, UIImagePickerControllerDelegate, UINavigationControllerDelegate, UIActionSheetDelegate>
 @property(nonatomic, strong) UITextView *chat;
 @property(nonatomic, strong) UITextView *input;
 @property(nonatomic, strong) UILabel *provedorLabel;
 @property(nonatomic, strong) UIButton *provedorBtn;
+@property(nonatomic, strong) UIButton *modeloBtn;
 @property(nonatomic, strong) UIImage *imagemAnexada;
 @property(nonatomic, assign) BOOL processando;
 @end
@@ -59,9 +60,9 @@ static NSString * const kBMAccentColor = @"#0D9488";
     [top addSubview:nova];
     [self.view addSubview:top];
 
-    // Seletor de provedor.
+    // Seletor de provedor (esquerda) + botão de modelo (direita).
     UIButton *provBtn = [UIButton buttonWithType:UIButtonTypeSystem];
-    provBtn.frame = CGRectMake(16, 72, W - 32, 40);
+    provBtn.frame = CGRectMake(16, 72, W - 150, 40);
     provBtn.backgroundColor = [BMViewController corHex:kBMCardColor];
     provBtn.layer.cornerRadius = 6;
     [provBtn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
@@ -72,6 +73,18 @@ static NSString * const kBMAccentColor = @"#0D9488";
     self.provedorLabel = provBtn.titleLabel;
     [self.view addSubview:provBtn];
     self.provedorBtn = provBtn;
+
+    UIButton *modeloBtn = [UIButton buttonWithType:UIButtonTypeSystem];
+    modeloBtn.frame = CGRectMake(W - 126, 72, 110, 40);
+    modeloBtn.backgroundColor = [BMViewController corHex:kBMAccentColor];
+    modeloBtn.layer.cornerRadius = 6;
+    [modeloBtn setTitle:@"Modelo ▾" forState:UIControlStateNormal];
+    [modeloBtn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    modeloBtn.titleLabel.font = [UIFont boldSystemFontOfSize:15];
+    modeloBtn.titleLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+    [modeloBtn addTarget:self action:@selector(abrirSelecaoModelo:) forControlEvents:UIControlEventTouchUpInside];
+    [self.view addSubview:modeloBtn];
+    self.modeloBtn = modeloBtn;
 
     // Área de mensagens.
     self.chat = [[UITextView alloc] initWithFrame:CGRectMake(8, 120, W - 16, H - 120 - 120)];
@@ -135,6 +148,66 @@ static NSString * const kBMAccentColor = @"#0D9488";
 - (void)abrirProvedores:(id)sender {
     BMProvidersController *vc = [[BMProvidersController alloc] init];
     [self presentViewController:vc animated:YES completion:nil];
+}
+
+// Abre a lista de modelos disponíveis do provedor ativo.
+- (void)abrirSelecaoModelo:(id)sender {
+    BMProvider *p = [[BMProviderStore shared] ativo];
+    if (!p) {
+        [self mostrarAlerta:@"Nenhum provedor ativo. Abra Provedores e adicione uma chave."];
+        return;
+    }
+    NSMutableArray *modelos = p.modelosDisponiveis;
+    if (modelos.count == 0) {
+        [self mostrarAlerta:@"Provedor sem modelos listados. Toque em + Modelo para adicionar."];
+        return;
+    }
+    UIActionSheet *sheet = [[UIActionSheet alloc] initWithTitle:[NSString stringWithFormat:@"%@ — escolha o modelo", p.nome]
+        delegate:self cancelButtonTitle:@"Cancelar" destructiveButtonTitle:nil otherButtonTitles:nil];
+    for (NSString *m in modelos) {
+        [sheet addButtonWithTitle:m];
+    }
+    [sheet addButtonWithTitle:@"+ Adicionar modelo manual"];
+    [sheet showInView:self.view];
+}
+
+// Seleção na lista de modelos.
+- (void)actionSheet:(UIActionSheet *)actionSheet clickedButtonAtIndex:(NSInteger)buttonIndex {
+    BMProvider *p = [[BMProviderStore shared] ativo];
+    if (!p) return;
+    NSInteger count = (NSInteger)p.modelosDisponiveis.count;
+    if (buttonIndex < count) {
+        p.modelo = p.modelosDisponiveis[buttonIndex];
+        [[BMProviderStore shared] salvar];
+        [self recarregarTela];
+        [self mostrarAlerta:[NSString stringWithFormat:@"Modelo ativo: %@", p.modelo]];
+    } else if (buttonIndex == count) {
+        [self adicionarModeloManual];
+    }
+}
+
+// Pede um modelo manualmente e adiciona à lista do provedor ativo.
+- (void)adicionarModeloManual {
+    UIAlertView *av = [[UIAlertView alloc] initWithTitle:@"Novo modelo"
+        message:@"Digite o id do modelo e toque em Salvar."
+        delegate:self cancelButtonTitle:@"Cancelar" otherButtonTitles:@"Salvar", nil];
+    av.alertViewStyle = UIAlertViewStylePlainTextInput;
+    av.tag = 9001;
+    [av show];
+}
+
+- (void)alertView:(UIAlertView *)alertView clickedButtonAtIndex:(NSInteger)buttonIndex {
+    if (alertView.tag != 9001 || buttonIndex != 1) return;
+    UITextField *tf = [alertView textFieldAtIndex:0];
+    NSString *novo = [tf.text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+    if (novo.length == 0) return;
+    BMProvider *p = [[BMProviderStore shared] ativo];
+    if (!p) return;
+    [p.modelosDisponiveis addObject:novo];
+    p.modelo = novo;
+    [[BMProviderStore shared] salvar];
+    [self recarregarTela];
+    [self mostrarAlerta:[NSString stringWithFormat:@"Modelo ativo: %@", novo]];
 }
 
 - (void)anexarImagem:(id)sender {
