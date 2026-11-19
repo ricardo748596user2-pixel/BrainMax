@@ -286,7 +286,10 @@ static NSString * const kBMRelayPort = @"8890";
     escaped = [escaped stringByReplacingOccurrencesOfString:@"'" withString:@"\\'"];
     escaped = [escaped stringByReplacingOccurrencesOfString:@"\n" withString:@"\\n"];
     NSString *js = [NSString stringWithFormat:@"window._bmCb('%@');", escaped];
-    [webView stringByEvaluatingJavaScriptFromString:js];
+    // stringByEvaluatingJavaScriptFromString: só pode rodar na main thread.
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [webView stringByEvaluatingJavaScriptFromString:js];
+    });
 }
 
 // ---------------------------------------------------------------
