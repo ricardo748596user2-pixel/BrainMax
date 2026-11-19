@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Chat IA</title>
+<!--
+  SOMENTE INTERFACE (dados simulados). Compativel com Safari do iOS 9: ES5, sem fetch/async,
+  flexbox com prefixo -webkit-, sem grid.
+  PONTOS DE LIGACAO PARA A LOGICA (procure por "TODO-LOGICA"):
+   - state.keys      -> chaves salvas (provedor, apelido, chave, modelos)
+   - state.chats     -> historico de conversas (salvar em localStorage / servidor local)
+   - fetchModels()   -> buscar lista de modelos do provedor ao adicionar a chave
+   - sendMessage()   -> chamar a API do modelo selecionado (via proxy local no PC)
+-->
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{--bg:#ffffff;--panel:#ffffff;--soft:#eef3fb;--ink:#14213d;--mute:#6b7a90;--line:#dfe6f1;--accent:#1e6fe8;--accent-ink:#fff;--user:#1e6fe8;--bot:#eef3fb;--warn:#d64545}
+body.dark{--bg:#000000;--panel:#000000;--soft:#12161f;--ink:#e9eef7;--mute:#7f8ba0;--line:#1c2230;--accent:#3d8bff;--accent-ink:#ffffff;--user:#2563eb;--bot:#12161f;--warn:#ff7a7a}
+html,body{height:100%;margin:0;overflow:hidden}
+body{font-family:-apple-system,"Helvetica Neue",Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:16px}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+.app{position:fixed;top:0;left:0;right:0;bottom:0;display:-webkit-flex;display:flex}
+.main{-webkit-flex:1;flex:1;display:-webkit-flex;display:flex;-webkit-flex-direction:column;flex-direction:column;min-width:0}
+/* topo */
+.top{display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;height:56px;padding:0 14px;background:var(--panel);border-bottom:1px solid var(--line)}
+.top .sp{-webkit-flex:1;flex:1}
+.model-btn{display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;max-width:60%;padding:8px 12px;border-radius:10px;background:var(--soft);border:1px solid var(--line)}
+.model-btn b{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.model-btn small{color:var(--mute);margin-left:8px;white-space:nowrap}
+.model-btn i{margin-left:8px;color:var(--mute);font-style:normal;font-size:12px}
+.ibtn{width:42px;height:42px;margin-left:6px;border-radius:10px;font-size:20px;line-height:42px;text-align:center;color:var(--mute)}
+.ibtn.on{background:var(--soft);color:var(--accent)}
+/* mensagens */
+.msgs{-webkit-flex:1;flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:22px 0}
+.wrap{max-width:760px;margin:0 auto;padding:0 18px}
+.m{margin-bottom:18px;display:-webkit-flex;display:flex}
+.m.u{-webkit-justify-content:flex-end;justify-content:flex-end}
+.bub{max-width:82%;padding:11px 15px;border-radius:16px;line-height:1.45;white-space:pre-wrap;word-wrap:break-word}
+.u .bub{background:var(--user);color:#fff;border-bottom-right-radius:4px}
+.a .bub{background:var(--bot);border-bottom-left-radius:4px}
+.bub img{display:block;max-width:220px;max-height:160px;border-radius:8px;margin-bottom:8px}
+.meta{font-size:12px;color:var(--mute);margin:-12px 0 18px 4px}
+.empty{text-align:center;color:var(--mute);margin-top:90px}
+.empty h2{color:var(--ink);font-weight:600;margin:0 0 6px}
+/* compositor */
+.comp{padding:10px 14px 14px;background:var(--bg)}
+.box{max-width:760px;margin:0 auto;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:8px}
+.chips{padding:2px 4px 6px}
+.chip{display:inline-block;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:4px 8px;font-size:13px;margin-right:6px}
+.chip u{margin-left:6px;text-decoration:none;color:var(--mute)}
+.row{display:-webkit-flex;display:flex;-webkit-align-items:flex-end;align-items:flex-end}
+textarea{-webkit-flex:1;flex:1;border:0;outline:0;resize:none;background:none;color:var(--ink);font:inherit;padding:9px 6px;height:42px;max-height:140px}
+.attach{width:40px;height:40px;border-radius:50%;font-size:22px;color:var(--mute)}
+.attach.off{opacity:.35}
+.send{width:40px;height:40px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-size:18px}
+.hint{max-width:760px;margin:6px auto 0;font-size:12px;color:var(--warn);min-height:15px;padding-left:6px}
+/* historico (direita) */
+.side{width:290px;background:var(--panel);border-left:1px solid var(--line);display:-webkit-flex;display:flex;-webkit-flex-direction:column;flex-direction:column}
+.side.hide{display:none}
+.side h3{margin:0;font-size:16px;font-weight:600}
+.side .hd{display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;height:56px;padding:0 14px;border-bottom:1px solid var(--line)}
+.new{margin:12px;padding:11px;border-radius:10px;background:var(--accent);color:var(--accent-ink);font-weight:600;text-align:center}
+.list{-webkit-flex:1;flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 8px}
+.grp{font-size:12px;color:var(--mute);padding:12px 8px 4px}
+.ci{display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;padding:10px 8px;border-radius:10px}
+.ci.sel{background:var(--soft)}
+.ci .t{-webkit-flex:1;flex:1;min-width:0}
+.ci .t b{display:block;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ci .t small{color:var(--mute);font-size:12px}
+.ci .del{width:34px;height:34px;color:var(--mute);font-size:17px}
+/* dropdown e modais */
+.ov{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.35);display:none;z-index:10}
+.ov.show{display:block}
+.pop{position:absolute;top:60px;left:50%;margin-left:-190px;width:380px;max-height:70%;overflow-y:auto;-webkit-overflow-scrolling:touch;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:6px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+.pg{font-size:12px;color:var(--mute);padding:10px 10px 4px}
+.mi{display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;width:100%;text-align:left;padding:10px;border-radius:9px}
+.mi.sel{background:var(--soft)}
+.mi span{-webkit-flex:1;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tag{font-size:11px;border:1px solid var(--line);color:var(--mute);border-radius:6px;padding:1px 6px;margin-left:6px}
+.tag.img{color:var(--accent);border-color:var(--accent)}
+.modal{position:absolute;top:50%;left:50%;width:520px;max-width:94%;max-height:88%;margin-left:-260px;-webkit-transform:translateY(-50%);transform:translateY(-50%);overflow-y:auto;-webkit-overflow-scrolling:touch;background:var(--panel);border-radius:16px;padding:20px}
+@media (max-width:540px){.modal{margin-left:0;left:3%;width:94%}.pop{margin-left:0;left:3%;width:94%}}
+.modal h2{margin:0 0 14px;font-size:19px}
+.kr{display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px}
+.kr .t{-webkit-flex:1;flex:1;min-width:0}
+.kr small{color:var(--mute);display:block}
+.kr .del{color:var(--warn);padding:6px 8px}
+label{display:block;font-size:13px;color:var(--mute);margin:12px 0 5px}
+select,input[type=text],input[type=password]{width:100%;padding:11px;border-radius:10px;border:1px solid var(--line);background:var(--soft);color:var(--ink);font:inherit;-webkit-appearance:none}
+.btn{display:inline-block;padding:11px 16px;border-radius:10px;background:var(--accent);color:var(--accent-ink);font-weight:600;margin-top:14px}
+.btn.ghost{background:var(--soft);color:var(--ink);border:1px solid var(--line);margin-left:8px}
+.found{margin-top:12px;font-size:14px;color:var(--mute)}
+.found .tag{margin:3px 4px 0 0;display:inline-block}
+hr{border:0;border-top:1px solid var(--line);margin:18px 0 6px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="main">
+    <div class="top">
+      <button class="model-btn" id="modelBtn"><b id="mName">Modelo</b><small id="mProv"></small><i>&#9660;</i></button>
+      <div class="sp"></div>
+      <button class="ibtn" id="themeBtn" title="Claro / escuro">&#9790;</button>
+      <button class="ibtn" id="keysBtn" title="Chaves de API">&#9881;</button>
+      <button class="ibtn on" id="histBtn" title="Histórico">&#9776;</button>
+    </div>
+    <div class="msgs" id="msgs"></div>
+    <div class="comp">
+      <div class="box">
+        <div class="chips" id="chips"></div>
+        <div class="row">
+          <button class="attach" id="attach" title="Anexar imagem">&#128206;</button>
+          <textarea id="inp" placeholder="Escreva uma mensagem"></textarea>
+          <button class="send" id="send">&#10148;</button>
+        </div>
+      </div>
+      <div class="hint" id="hint"></div>
+    </div>
+  </div>
+
+  <div class="side" id="side">
+    <div class="hd"><h3>Conversas</h3></div>
+    <button class="new" id="newChat">+ Nova conversa</button>
+    <div class="list" id="list"></div>
+  </div>
+</div>
+
+<!-- seletor de modelo -->
+<div class="ov" id="ovModel"><div class="pop" id="popModel"></div></div>
+
+<!-- chaves de API -->
+<div class="ov" id="ovKeys"><div class="modal">
+  <h2>Chaves de API</h2>
+  <div id="keyList"></div>
+  <hr>
+  <h2 style="margin-top:14px">Adicionar chave</h2>
+  <label>Provedor</label>
+  <select id="fProv"></select>
+  <div id="customBox" style="display:none">
+    <label>Nome do provedor</label>
+    <input type="text" id="fCName" placeholder="Ex.: Meu servidor">
+    <label>URL base (compatível com OpenAI)</label>
+    <input type="text" id="fUrl" placeholder="Ex.: http://192.168.0.10:11434/v1">
+    <label>Modelos manuais (opcional, separados por vírgula)</label>
+    <input type="text" id="fManual" placeholder="Deixe vazio para buscar automaticamente">
+  </div>
+  <label>Apelido (opcional)</label>
+  <input type="text" id="fName" placeholder="Ex.: OpenRouter conta 2">
+  <label>Chave de API</label>
+  <input type="password" id="fKey" placeholder="Cole a chave aqui">
+  <div class="found" id="found"></div>
+  <button class="btn" id="fAdd">Buscar modelos e salvar</button>
+  <button class="btn ghost" id="fClose">Fechar</button>
+</div></div>
+
+<script>
+/* ---------- DADOS SIMULADOS (TODO-LOGICA: substituir por dados reais) ---------- */
+var PROVIDERS = ['OpenRouter','9Router','AMD Token Lab','NVIDIA Build','Groq','Personalizado'];
+/* TODO-LOGICA: URLs base dos provedores prontos ficam no servidor; 'Personalizado' usa fUrl */
+var state = {
+  dark:false, side:true, keyId:1, model:'llama-3.3-70b-instruct:free', chatId:1, pending:[],
+  keys:[
+    {id:1,prov:'OpenRouter',name:'OpenRouter conta 1',models:[
+      {id:'llama-3.3-70b-instruct:free',vision:false},
+      {id:'qwen2.5-vl-72b-instruct:free',vision:true},
+      {id:'gemini-2.0-flash-exp:free',vision:true}]},
+    {id:2,prov:'Groq',name:'Groq',models:[
+      {id:'llama-3.1-8b-instant',vision:false},
+      {id:'llama-3.2-90b-vision-preview',vision:true}]},
+    {id:3,prov:'NVIDIA Build',name:'NVIDIA Build',models:[
+      {id:'nemotron-70b-instruct',vision:false}]}
+  ],
+  chats:[
+    {id:1,title:'Ideias para o app',date:'Hoje',keyId:1,model:'llama-3.3-70b-instruct:free',msgs:[
+      {r:'u',t:'Me ajuda a organizar o app de chat?'},
+      {r:'a',t:'Claro! Comece pela lista de conversas à direita e o seletor de modelo no topo.'}]},
+    {id:2,title:'Receita de pão caseiro',date:'Ontem',keyId:2,model:'llama-3.1-8b-instant',msgs:[{r:'u',t:'Receita simples de pão?'},{r:'a',t:'Farinha, água, sal e fermento. Descanse a massa por 1 hora.'}]},
+    {id:3,title:'Resumo de artigo',date:'Há 4 dias',keyId:1,model:'gemini-2.0-flash-exp:free',msgs:[]}
+  ]
+};
+function $(id){return document.getElementById(id)}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function curKey(){for(var i=0;i<state.keys.length;i++)if(state.keys[i].id===state.keyId)return state.keys[i]}
+function curModel(){var k=curKey();if(!k)return null;for(var i=0;i<k.models.length;i++)if(k.models[i].id===state.model)return k.models[i]}
+function curChat(){for(var i=0;i<state.chats.length;i++)if(state.chats[i].id===state.chatId)return state.chats[i]}
+
+/* ---------- RENDER ---------- */
+function renderTop(){
+  var k=curKey(),m=curModel();
+  $('mName').textContent=m?m.id:'Selecione um modelo';
+  $('mProv').textContent=k?k.name:'';
+  var ok=m&&m.vision;
+  $('attach').className='attach'+(ok?'':' off');
+  $('hint').textContent='';
+}
+function renderMsgs(){
+  var c=curChat(),h='';
+  if(!c||!c.msgs.length){$('msgs').innerHTML='<div class="empty"><h2>Como posso ajudar?</h2>Escolha um modelo no topo e comece a conversar.</div>';return}
+  for(var i=0;i<c.msgs.length;i++){
+    var x=c.msgs[i];
+    h+='<div class="m '+x.r+'"><div class="bub">'+(x.img?'<img src="'+x.img+'">':'')+esc(x.t)+'</div></div>';
+  }
+  $('msgs').innerHTML='<div class="wrap">'+h+'</div>';
+  $('msgs').scrollTop=$('msgs').scrollHeight;
+}
+function renderList(){
+  var h='',last='';
+  for(var i=0;i<state.chats.length;i++){
+    var c=state.chats[i];
+    if(c.date!==last){h+='<div class="grp">'+esc(c.date)+'</div>';last=c.date}
+    h+='<div class="ci'+(c.id===state.chatId?' sel':'')+'" data-open="'+c.id+'"><div class="t"><b>'+esc(c.title)+'</b><small>'+esc(c.model)+'</small></div><button class="del" data-del="'+c.id+'">&#128465;</button></div>';
+  }
+  $('list').innerHTML=h;
+  $('side').className='side'+(state.side?'':' hide');
+}
+function renderChips(){
+  var h='';
+  for(var i=0;i<state.pending.length;i++)h+='<span class="chip">&#128247; '+esc(state.pending[i])+'<u data-rm="'+i+'">&#10005;</u></span>';
+  $('chips').innerHTML=h;$('chips').style.display=h?'block':'none';
+}
+function renderModelPop(){
+  var h='';
+  for(var i=0;i<state.keys.length;i++){
+    var k=state.keys[i];
+    h+='<div class="pg">'+esc(k.name)+' &middot; '+esc(k.prov)+'</div>';
+    for(var j=0;j<k.models.length;j++){
+      var m=k.models[j],sel=(k.id===state.keyId&&m.id===state.model);
+      h+='<button class="mi'+(sel?' sel':'')+'" data-k="'+k.id+'" data-m="'+esc(m.id)+'"><span>'+esc(m.id)+'</span>'+(m.vision?'<em class="tag img">imagem</em>':'')+(sel?'<em class="tag">&#10003;</em>':'')+'</button>';
+    }
+  }
+  $('popModel').innerHTML=h||'<div class="pg">Nenhuma chave adicionada.</div>';
+}
+function renderKeys(){
+  var h='';
+  for(var i=0;i<state.keys.length;i++){
+    var k=state.keys[i];
+    h+='<div class="kr"><div class="t"><b>'+esc(k.name)+'</b><small>'+esc(k.prov)+' &middot; '+k.models.length+' modelos</small></div><button class="del" data-delkey="'+k.id+'">Excluir</button></div>';
+  }
+  $('keyList').innerHTML=h||'<div class="found">Nenhuma chave ainda.</div>';
+}
+function renderAll(){renderTop();renderMsgs();renderList();renderChips();renderKeys()}
+
+/* ---------- ACOES ---------- */
+function openChat(id){state.chatId=id;var c=curChat();if(c){state.keyId=c.keyId;state.model=c.model}renderAll()}
+function newChat(){
+  var id=Date.now();
+  state.chats.unshift({id:id,title:'Nova conversa',date:'Hoje',keyId:state.keyId,model:state.model,msgs:[]});
+  state.chatId=id;renderAll();
+}
+function sendMessage(){ /* TODO-LOGICA: chamar a API do modelo selecionado e salvar o historico */
+  var t=$('inp').value.replace(/\s+$/,'');
+  if(!t&&!state.pending.length)return;
+  var c=curChat();if(!c){newChat();c=curChat()}
+  if(c.msgs.length===0)c.title=t.slice(0,32)||'Imagem';
+  c.keyId=state.keyId;c.model=state.model;
+  c.msgs.push({r:'u',t:t,img:state.pending.length?'data:image/gif;base64,R0lGODlhAQABAIAAAAUEBAAAACwAAAAAAQABAAACAkQBADs=':null});
+  c.msgs.push({r:'a',t:'(resposta simulada — aqui entra a resposta do modelo)'});
+  state.pending=[];$('inp').value='';$('inp').style.height='42px';
+  renderMsgs();renderList();renderChips();
+}
+function fetchModels(prov,key,cb,custom){ /* custom = {url:'...', manual:['id1','id2']} quando o provedor e Personalizado */ /* TODO-LOGICA: buscar modelos reais do provedor */
+  setTimeout(function(){cb([{id:'modelo-exemplo-texto',vision:false},{id:'modelo-exemplo-visao',vision:true}])},600);
+}
+
+/* ---------- EVENTOS ---------- */
+document.addEventListener('click',function(e){
+  var t=e.target,d;
+  while(t&&t!==document&&!(t.getAttribute&&(t.getAttribute('data-open')||t.getAttribute('data-del')||t.getAttribute('data-delkey')||t.getAttribute('data-rm')||t.getAttribute('data-m')))){t=t.parentNode}
+  if(!t||t===document)return;
+  if(d=t.getAttribute('data-del')){
+    d=parseInt(d,10);
+    state.chats=state.chats.filter(function(c){return c.id!==d});
+    if(state.chatId===d){state.chatId=state.chats.length?state.chats[0].id:null}
+    renderAll();return;
+  }
+  if(d=t.getAttribute('data-open')){openChat(parseInt(d,10));return}
+  if(d=t.getAttribute('data-delkey')){d=parseInt(d,10);state.keys=state.keys.filter(function(k){return k.id!==d});renderKeys();return}
+  if(d=t.getAttribute('data-rm')){state.pending.splice(parseInt(d,10),1);renderChips();return}
+  if(t.getAttribute('data-m')){
+    state.keyId=parseInt(t.getAttribute('data-k'),10);state.model=t.getAttribute('data-m');
+    $('ovModel').className='ov';renderTop();
+  }
+});
+$('modelBtn').onclick=function(){renderModelPop();$('ovModel').className='ov show'};
+$('ovModel').onclick=function(e){if(e.target===$('ovModel'))$('ovModel').className='ov'};
+$('keysBtn').onclick=function(){renderKeys();$('ovKeys').className='ov show'};
+$('fClose').onclick=function(){$('ovKeys').className='ov'};
+$('ovKeys').onclick=function(e){if(e.target===$('ovKeys'))$('ovKeys').className='ov'};
+$('themeBtn').onclick=function(){state.dark=!state.dark;document.body.className=state.dark?'dark':'';$('themeBtn').innerHTML=state.dark?'&#9728;':'&#9790;'};
+$('histBtn').onclick=function(){state.side=!state.side;$('histBtn').className='ibtn'+(state.side?' on':'');renderList()};
+$('newChat').onclick=newChat;
+$('send').onclick=sendMessage;
+$('attach').onclick=function(){
+  var m=curModel();
+  if(!m||!m.vision){$('hint').textContent='Este modelo não aceita imagens. Escolha um modelo com a etiqueta "imagem".';return}
+  state.pending.push('foto.jpg');renderChips(); /* TODO-LOGICA: abrir <input type=file> e ler a imagem */
+};
+$('inp').oninput=function(){this.style.height='42px';this.style.height=Math.min(this.scrollHeight,140)+'px'};
+$('fAdd').onclick=function(){
+  var key=$('fKey').value;if(!key){$('found').textContent='Cole a chave de API.';return}
+  var prov=$('fProv').value,custom=null;
+  if(prov==='Personalizado'){
+    var url=$('fUrl').value,cn=$('fCName').value;
+    if(!url||!cn){$('found').textContent='Informe o nome e a URL base do provedor.';return}
+    var man=$('fManual').value?$('fManual').value.split(','):[];
+    custom={url:url,manual:man};prov=cn;
+  }
+  var name=$('fName').value||prov;
+  $('found').textContent='Buscando modelos...';
+  fetchModels(prov,key,function(models){
+    var id=Date.now();state.keys.push({id:id,prov:prov,name:name,custom:custom,models:models});
+    var h='Encontrados '+models.length+' modelos: ';
+    for(var i=0;i<models.length;i++)h+='<span class="tag'+(models[i].vision?' img':'')+'">'+esc(models[i].id)+'</span>';
+    $('found').innerHTML=h;$('fKey').value='';$('fName').value='';renderKeys();
+  },custom);
+};
+(function(){var h='';for(var i=0;i<PROVIDERS.length;i++)h+='<option>'+PROVIDERS[i]+'</option>';$('fProv').innerHTML=h;$('fProv').onchange=function(){$('customBox').style.display=this.value==='Personalizado'?'block':'none'}})();
+renderAll();
+</script>
+</body>
+</html>

@@ -1,17 +1,14 @@
-/* Brain Max - frontend ES5 (compativel Safari iOS 9). */
+/* Brain Max - frontend ES5, fala com o backend nativo (Objective-C) via ponte brainmax:// */
 'use strict';
 
-function xhr(method, url, body, cb) {
-  var x = new XMLHttpRequest();
-  x.open(method, url, true);
-  if (body) x.setRequestHeader('Content-Type', 'application/json');
-  x.onreadystatechange = function() {
-    if (x.readyState !== 4) return;
-    var d = null;
-    try { d = x.responseText ? JSON.parse(x.responseText) : null; } catch (e) { d = null; }
-    cb(x.status, d);
-  };
-  x.send(body ? JSON.stringify(body) : null);
+/* Ponte JS -> ObjC: envia 'acao' + parametros para o WebView; o ObjC responde via _bmCb */
+function bridge(acao, params, cb) {
+  window._bmCb = cb || function(){};
+  var ifr = document.createElement('iframe');
+  ifr.style.display = 'none';
+  ifr.setAttribute('src', 'brainmax://' + acao + '?' + encodeURIComponent(JSON.stringify(params || {})));
+  document.body.appendChild(ifr);
+  setTimeout(function(){ if (ifr.parentNode) ifr.parentNode.removeChild(ifr); }, 50);
 }
 
 var PROVIDERS = ['OpenRouter','9Router','AMD Token Lab','NVIDIA Build','Groq','Personalizado'];
@@ -19,7 +16,6 @@ var state = {
   dark:false, side:true, keyId:null, model:null, chatId:null,
   keys:[], chats:[], pending:[]
 };
-
 function $(id){ return document.getElementById(id); }
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function curKey(){ for(var i=0;i<state.keys.length;i++) if(state.keys[i].id===state.keyId) return state.keys[i]; return null; }
@@ -30,8 +26,7 @@ function renderTop(){
   var k=curKey(), m=curModel();
   $('mName').textContent = m ? m.id : 'Selecione um modelo';
   $('mProv').textContent = k ? k.name : '';
-  var ok = m && m.vision;
-  $('attach').className = 'attach' + (ok ? '' : ' off');
+  $('attach').className = 'attach' + (m && m.vision ? '' : ' off');
   $('hint').textContent = '';
 }
 function renderMsgs(){
@@ -76,7 +71,7 @@ function renderKeys(){
   var h='';
   for (var i=0;i<state.keys.length;i++){
     var k=state.keys[i];
-    h += '<div class="kr"><div class="t"><b>'+esc(k.name)+'</b><small>'+esc(k.prov)+' &middot; '+k.models.length+' modelos &middot; &hellip;'+esc(k.keyTail)+'</small></div><button class="del" data-delkey="'+k.id+'">Excluir</button></div>';
+    h += '<div class="kr"><div class="t"><b>'+esc(k.name)+'</b><small>'+esc(k.prov)+' &middot; '+k.models.length+' modelos</small></div><button class="del" data-delkey="'+k.id+'">Excluir</button></div>';
   }
   $('keyList').innerHTML = h || '<div class="found">Nenhuma chave ainda.</div>';
 }
@@ -92,10 +87,10 @@ function dateLabel(ts){
 }
 
 function loadAll(){
-  xhr('GET','/keys',null,function(s1,d1){
-    if (s1===200 && d1 && d1.keys) state.keys = d1.keys;
-    xhr('GET','/chats',null,function(s2,d2){
-      if (s2===200 && d2 && d2.chats) state.chats = d2.chats;
+  bridge('keys', {}, function(res){
+    if (res && res.keys) state.keys = res.keys;
+    bridge('chats', {}, function(res2){
+      if (res2 && res2.chats) state.chats = res2.chats;
       if (!state.keyId && state.keys.length){ state.keyId = state.keys[0].id; if (state.keys[0].models.length) state.model = state.keys[0].models[0].id; }
       if (!state.chatId && state.chats.length) state.chatId = state.chats[0].id;
       renderAll();
@@ -103,20 +98,19 @@ function loadAll(){
   });
 }
 
-function saveChat(c){ xhr('POST','/chats',{chat:c},function(){}); }
+function saveChat(c){ bridge('chatsave', { chat: c }, function(){}); }
 
 function openChat(id){
   state.chatId = id;
-  xhr('GET','/chats/'+id,null,function(s,d){
-    if (s===200 && d && d.chat){
-      state.keyId = d.chat.keyId;
-      state.model = d.chat.model;
-      for (var i=0;i<state.chats.length;i++) if (state.chats[i].id===id) state.chats[i].msgs = d.chat.msgs;
+  bridge('chatget', { id: id }, function(res){
+    if (res && res.chat){
+      state.keyId = res.chat.keyId;
+      state.model = res.chat.model;
+      for (var i=0;i<state.chats.length;i++) if (state.chats[i].id===id) state.chats[i].msgs = res.chat.msgs;
     }
     renderAll();
   });
 }
-
 function newChat(){
   var id = Date.now();
   var c = { id:id, title:'Nova conversa', date:'Hoje', keyId:state.keyId, model:state.model, msgs:[], created:Date.now() };
@@ -153,24 +147,20 @@ function sendMessage(){
     hist.push({ role: (mm.r==='a'?'assistant':'user'), content: mm.t || '' });
   }
 
-  $('hint').textContent = 'aguardando&hellip;';
+  $('hint').textContent = 'aguardando...';
   var payload = { keyId: state.keyId, model: state.model, messages: hist };
   if (imgData) payload.imageBase64 = imgData;
-  xhr('POST','/chat',payload,function(s,d){
-    if (d && d.error){ $('hint').textContent = d.error; renderMsgs(); return; }
-    if (s===200 && d && d.reply){
-      c.msgs.push({ r:'a', t:d.reply });
+  bridge('chat', payload, function(res){
+    if (res && res.error){ $('hint').textContent = res.error; renderMsgs(); return; }
+    if (res && res.reply){
+      c.msgs.push({ r:'a', t:res.reply });
       $('hint').textContent = '';
       saveChat(c);
       renderMsgs(); renderList();
     } else {
-      $('hint').textContent = 'Falha ao responder ('+s+').';
+      $('hint').textContent = 'Falha ao responder.';
     }
   });
-}
-
-function queryModels(prov,key,custom,cb){
-  xhr('POST','/models',{ prov:prov, key:key, custom:custom },function(s,d){ cb(s,d); });
 }
 
 document.addEventListener('click',function(e){
@@ -181,7 +171,7 @@ document.addEventListener('click',function(e){
     d=parseInt(d,10);
     state.chats = state.chats.filter(function(c){return c.id!==d;});
     if (state.chatId===d) state.chatId = state.chats.length ? state.chats[0].id : null;
-    xhr('DELETE','/chats/'+d,null,function(){});
+    bridge('chatdel', { id: d }, function(){});
     renderAll(); return;
   }
   if (d=t.getAttribute('data-open')){ openChat(parseInt(d,10)); return; }
@@ -192,7 +182,7 @@ document.addEventListener('click',function(e){
       state.keyId = state.keys.length ? state.keys[0].id : null;
       state.model = (state.keyId && state.keys[0].models.length) ? state.keys[0].models[0].id : null;
     }
-    xhr('DELETE','/keys/'+d,null,function(){});
+    bridge('keydel', { id: d }, function(){});
     renderAll(); return;
   }
   if (d=t.getAttribute('data-rm')){ state.pending.splice(parseInt(d,10),1); renderChips(); return; }
@@ -247,9 +237,8 @@ function reduceImage(dataUrl, cb){
     cv.width = w; cv.height = h;
     var ctx = cv.getContext('2d');
     ctx.drawImage(img, 0, 0, w, h);
-    try {
-      cb(cv.toDataURL('image/jpeg', 0.6).replace('data:image/jpeg;base64,',''));
-    } catch (e) { cb(dataUrl.replace('data:image/jpeg;base64,','')); }
+    try { cb(cv.toDataURL('image/jpeg', 0.6).replace('data:image/jpeg;base64,','')); }
+    catch (e) { cb(dataUrl.replace('data:image/jpeg;base64,','')); }
   };
   img.onerror = function(){ cb(dataUrl.replace('data:image/jpeg;base64,','')); };
   img.src = dataUrl;
@@ -268,20 +257,20 @@ $('fAdd').onclick = function(){
   }
   var name = $('fName').value || prov;
   $('found').textContent = 'Buscando modelos...';
-  queryModels(prov, key, custom, function(s, d){
-    var models = (s===200 && d && d.models) ? d.models : [];
-    if (s===200 && d && d.error){ $('found').textContent = d.error; return; }
-    xhr('POST','/keys',{ prov:prov, name:name, key:key, custom:custom },function(s2,d2){
-      if (s2===200 && d2 && d2.id){
-        state.keys.push({ id:d2.id, prov:d2.prov, name:d2.name, keyTail:d2.keyTail, models:models });
+  bridge('models', { prov: prov, key: key, custom: custom }, function(res){
+    var models = (res && res.models) ? res.models : [];
+    if (res && res.error){ $('found').textContent = res.error; return; }
+    bridge('keyadd', { prov: prov, name: name, key: key, custom: custom }, function(res2){
+      if (res2 && res2.id){
+        state.keys.push({ id: res2.id, prov: res2.prov, name: res2.name, models: models });
         var h = 'Encontrados '+models.length+' modelos: ';
         for (var i=0;i<models.length;i++) h += '<span class="tag'+(models[i].vision?' img':'')+'">'+esc(models[i].id)+'</span>';
         $('found').innerHTML = h;
         $('fKey').value = ''; $('fName').value = '';
-        if (!state.keyId){ state.keyId = d2.id; if (models.length) state.model = models[0].id; }
+        if (!state.keyId){ state.keyId = res2.id; if (models.length) state.model = models[0].id; }
         renderKeys(); renderModelPop(); renderTop();
       } else {
-        $('found').textContent = (d2 && d2.error) ? d2.error : 'Falha ao salvar.';
+        $('found').textContent = (res2 && res2.error) ? res2.error : 'Falha ao salvar.';
       }
     });
   });
@@ -294,4 +283,6 @@ $('fAdd').onclick = function(){
   $('fProv').onchange = function(){ $('customBox').style.display = this.value==='Personalizado'?'block':'none'; };
 })();
 
+/* Callback chamado pelo ObjC com o JSON de resposta de cada ponte */
+window._bmCb = function(json){ };
 loadAll();
