@@ -1,73 +1,83 @@
 # Brain Max
 
-App de chat nativo (Objective-C/UIKit) para **iPad 2 / iOS 9.3.5**.
+Chat de IA para **iPad 2 / iOS 9.3.5** com **interface web** servida por um **servidor local no PC**.
 
-- Guarda **histórico de conversa de forma nativa** (JSON em `Documents/` do app).
-- Funciona com **chaves de API gratuitas** de vários provedores OpenAI-compatible:
-  - **OpenRouter**, **Groq**, **NVIDIA Build**, **AMD Token Lab**.
-- Permite **adicionar, excluir e guardar várias chaves**, escolher o provedor/modelo
-  ativo, e **enviar imagem** quando o modelo aceitar.
+O iPad (Safari iOS 9, sem fetch/async/ES6) só abre uma página e fala com o servidor via HTTP.
+Quem chama as APIs dos provedores é o servidor do PC — o iPad nunca faz HTTPS moderno.
 
-## Por que um relay local?
+## Como iniciar o servidor (no PC)
 
-O iPad 2 / iOS 9.3 **não negocia TLS moderno** com as APIs atuais (OpenRouter, Groq,
-NVIDIA, AMD ficam atrás de CDNs que exigem TLS/ciphers que o iOS 9 não oferece). Por
-isso o app fala **HTTP simples** com um **relay local** que roda no Windows, e esse
-relay faz a chamada **HTTPS real** para a API escolhida.
+1. Instale o Node.js (se não tiver).
+2. Na pasta do projeto:
 
-```
-iPad (app Brain Max) --HTTP--> Windows (relay 8890) --HTTPS--> API (OpenRouter/Groq/NVIDIA/AMD)
+```bat
+iniciar-web.cmd
 ```
 
-As **chaves de API ficam salvas no iPad**; o relay só repassa e não persiste nada.
+ou:
 
-## Build
-
-Feito em GitHub Actions (mesmo caminho validado do PadControl):
-- Clang `--target=armv7-apple-ios9.3`, SDK iPhoneOS 9.3, ld64 (cctools-port), `ldid -S`.
-- Gera `Payload/BrainMax.app` empacotado em `BrainMax-iOS9-armv7.ipa`.
-
-Workflow: `.github/workflows/build-ipa.yml` (dispara em `push` para `ios/**`).
-
-## Instalação no iPad (SSH/SCP + ipainstaller)
-
-```
-scp BrainMax-iOS9-armv7.ipa root@<ipad>:/tmp/BrainMax.ipa
-ssh root@<ipad> "cd /tmp && ipainstaller BrainMax.ipa"
+```bat
+node server.js
 ```
 
-## Como usar
+O servidor escuta em `0.0.0.0:8890`.
 
-1. Inicie o relay no Windows: `relay\iniciar-relay.cmd` (porta 8890).
-2. No app (iPad), abra **Provedores** e **Adicionar** um provedor:
-   - **Nome**: rótulo (ex.: "Groq")
-   - **Base URL**: URL da API **sem** `/chat/completions`
-   - **Modelo**: id do modelo
-   - **Chave**: sua API key
-   - **Modelo aceita imagem**: ligue se o modelo aceitar imagem
-3. Toque **Usar** para ativar.
-4. Digite no campo de chat e toque **Enviar**.
+## Endereço para abrir no iPad
 
-### Base URLs (exemplos)
+Abra no Safari do iPad:
+
+```
+http://<IP-DESTE-PC>:8890
+```
+
+Exemplo: se o IP do PC for `192.168.15.47`:
+
+```
+http://192.168.15.47:8890
+```
+
+## O que a interface faz
+
+- **Seletor de modelo no topo**, agrupado por chave de API (cada chave tem apelido e provedor).
+- **Tela "Chaves de API"**: listar, excluir e adicionar chaves. Ao adicionar, escolhe o provedor,
+  coloca apelido e chave, e o servidor busca **todos os modelos disponíveis** do provedor.
+  Pode haver **várias chaves do mesmo provedor**.
+- **Provedores prontos**: OpenRouter, 9Router, AMD Token Lab, NVIDIA Build, Groq.
+  Mais **Personalizado** (nome + URL base OpenAI-compatible + lista manual de modelos opcional).
+- **Painel de histórico à direita**: conversas por data, abrir e continuar o contexto,
+  excluir, nova conversa.
+- **Anexo de imagem**: o clipe só funciona se o modelo aceitar imagem; reduz antes de enviar.
+- **Tema claro/escuro**.
+
+## Segurança e dados
+
+- As **chaves de API** ficam salvas em `data/keys.json` no **PC** (nunca no navegador).
+  O servidor devolve ao navegador apenas o **apelido** e os **últimos 4 caracteres** da chave.
+- As **conversas** ficam em `data/chats.json` no PC.
+- A pasta `data/` não é versionada (não sobe para o GitHub).
+
+## Provedores prontos (base URL no servidor)
 
 | Provedor | Base URL |
 |----------|----------|
 | OpenRouter | `https://openrouter.ai/api/v1` |
 | Groq | `https://api.groq.com/openai/v1` |
 | NVIDIA Build | `https://integrate.api.nvidia.com/v1` |
-| AMD Token Lab | o endpoint que a sua conta AMD fornecer |
+| AMD Token Lab | `https://api.tokenlab.amd.com/v1` |
+| 9Router | `http://127.0.0.1:11434/v1` (padrão local, configurável via `BRAINMAX_NINEROUTER`) |
 
 ## Estrutura
 
-- `ios/BrainMax/` — fontes do app (Objective-C/UIKit)
-- `ios/icons/` — ícones (gerados do `iconebrainmax.png`)
-- `relay/` — relay local Node (sem dependências externas)
-- `.github/workflows/build-ipa.yml` — build ARMv7/iOS 9.3
+- `server.js` — servidor local Node (chaves, modelos, conversas, chat; CORS p/ rede local)
+- `web/index.html` — interface (visual)
+- `web/app.js` — lógica do frontend (ES5, XMLHttpRequest)
+- `data/` — chaves e conversas salvas (não versionado)
+- `ios/` — versão anterior do app nativo Objective-C (não usada na nova interface)
 
-## Notas de rede
+## Endpoints do servidor
 
-- O iPad precisa alcançar o Windows na rede local. O app usa o host padrão
-  `192.168.15.47:8890` para o relay (constante `relayHost`/`relayPort` em
-  `BMAPIClient.m`). Se o IP mudar, ajuste ali.
-- A abertura do app em iOS 9.3.x usa USBMux + DeveloperDiskImage + DVT
-  (`pymobiledevice3 developer dvt launch com.ricardo.brainmax`).
+- `GET/POST/DELETE /keys` — listar / adicionar (busca modelos) / excluir chaves
+- `POST /models` — buscar modelos de um provedor com uma chave (sem salvar)
+- `GET/POST/DELETE /chats` — listar / salvar / excluir conversas
+- `GET /chats/:id` — ler conversa (com mensagens)
+- `POST /chat` — enviar mensagem: recebe histórico + modelo + chave, chama a API, devolve resposta
