@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Brain Max</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{--bg:#ffffff;--panel:#ffffff;--soft:#eef3fb;--ink:#14213d;--mute:#6b7a90;--line:#dfe6f1;--accent:#1e6fe8;--accent-ink:#fff;--user:#1e6fe8;--bot:#eef3fb;--warn:#d64545}
+body.dark{--bg:#000000;--panel:#000000;--soft:#12161f;--ink:#e9eef7;--mute:#7f8ba0;--line:#1c2230;--accent:#3d8bff;--accent-ink:#ffffff;--user:#2563eb;--bot:#12161f;--warn:#ff7a7a}
+html,body{height:100%;margin:0;overflow:hidden}
+body{font-family:-apple-system,"Helvetica Neue",Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:16px}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+.app{position:fixed;top:0;left:0;right:0;bottom:0;display:-webkit-flex;display:flex}
+.main{-webkit-flex:1;flex:1;display:-webkit-flex;display:flex;-webkit-flex-direction:column;flex-direction:column;min-width:0}
+.top{display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;height:56px;padding:0 14px;background:var(--panel);border-bottom:1px solid var(--line)}
+.top .sp{-webkit-flex:1;flex:1}
+.model-btn{display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;max-width:60%;padding:8px 12px;border-radius:10px;background:var(--soft);border:1px solid var(--line)}
+.model-btn b{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.model-btn small{color:var(--mute);margin-left:8px;white-space:nowrap}
+.model-btn i{margin-left:8px;color:var(--mute);font-style:normal;font-size:12px}
+.ibtn{width:42px;height:42px;margin-left:6px;border-radius:10px;font-size:20px;line-height:42px;text-align:center;color:var(--mute)}
+.ibtn.on{background:var(--soft);color:var(--accent)}
+.msgs{-webkit-flex:1;flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:22px 0}
+.wrap{max-width:760px;margin:0 auto;padding:0 18px}
+.m{margin-bottom:18px;display:-webkit-flex;display:flex}
+.m.u{-webkit-justify-content:flex-end;justify-content:flex-end}
+.bub{max-width:82%;padding:11px 15px;border-radius:16px;line-height:1.45;white-space:pre-wrap;word-wrap:break-word}
+.u .bub{background:var(--user);color:#fff;border-bottom-right-radius:4px}
+.a .bub{background:var(--bot);border-bottom-left-radius:4px}
+.bub img{display:block;max-width:220px;max-height:160px;border-radius:8px;margin-bottom:8px}
+.meta{font-size:12px;color:var(--mute);margin:-12px 0 18px 4px}
+.empty{text-align:center;color:var(--mute);margin-top:90px}
+.empty h2{color:var(--ink);font-weight:600;margin:0 0 6px}
+.comp{padding:10px 14px 14px;background:var(--bg)}
+.box{max-width:760px;margin:0 auto;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:8px}
+.chips{padding:2px 4px 6px}
+.chip{display:inline-block;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:4px 8px;font-size:13px;margin-right:6px}
+.chip u{margin-left:6px;text-decoration:none;color:var(--mute)}
+.row{display:-webkit-flex;display:flex;-webkit-align-items:flex-end;align-items:flex-end}
+textarea{-webkit-flex:1;flex:1;border:0;outline:0;resize:none;background:none;color:var(--ink);font:inherit;padding:9px 6px;height:42px;max-height:140px}
+.attach{width:40px;height:40px;border-radius:50%;font-size:22px;color:var(--mute)}
+.attach.off{opacity:.35}
+.send{width:40px;height:40px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-size:18px}
+.hint{max-width:760px;margin:6px auto 0;font-size:12px;color:var(--warn);min-height:15px;padding-left:6px}
+.side{width:290px;background:var(--panel);border-left:1px solid var(--line);display:-webkit-flex;display:flex;-webkit-flex-direction:column;flex-direction:column}
+.side.hide{display:none}
+.side h3{margin:0;font-size:16px;font-weight:600}
+.side .hd{display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;height:56px;padding:0 14px;border-bottom:1px solid var(--line)}
+.new{margin:12px;padding:11px;border-radius:10px;background:var(--accent);color:var(--accent-ink);font-weight:600;text-align:center}
+.list{-webkit-flex:1;flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 8px}
+.grp{font-size:12px;color:var(--mute);padding:12px 8px 4px}
+.ci{display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;padding:10px 8px;border-radius:10px}
+.ci.sel{background:var(--soft)}
+.ci .t{-webkit-flex:1;flex:1;min-width:0}
+.ci .t b{display:block;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ci .t small{color:var(--mute);font-size:12px}
+.ci .del{width:34px;height:34px;color:var(--mute);font-size:17px}
+.ov{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.35);display:none;z-index:10}
+.ov.show{display:block}
+.pop{position:absolute;top:60px;left:50%;margin-left:-190px;width:380px;max-height:70%;overflow-y:auto;-webkit-overflow-scrolling:touch;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:6px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+.pg{font-size:12px;color:var(--mute);padding:10px 10px 4px}
+.mi{display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;width:100%;text-align:left;padding:10px;border-radius:9px}
+.mi.sel{background:var(--soft)}
+.mi span{-webkit-flex:1;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tag{font-size:11px;border:1px solid var(--line);color:var(--mute);border-radius:6px;padding:1px 6px;margin-left:6px}
+.tag.img{color:var(--accent);border-color:var(--accent)}
+.modal{position:absolute;top:50%;left:50%;width:520px;max-width:94%;max-height:88%;margin-left:-260px;-webkit-transform:translateY(-50%);transform:translateY(-50%);overflow-y:auto;-webkit-overflow-scrolling:touch;background:var(--panel);border-radius:16px;padding:20px}
+@media (max-width:540px){.modal{margin-left:0;left:3%;width:94%}.pop{margin-left:0;left:3%;width:94%}}
+.modal h2{margin:0 0 14px;font-size:19px}
+.kr{display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px}
+.kr .t{-webkit-flex:1;flex:1;min-width:0}
+.kr small{color:var(--mute);display:block}
+.kr .del{color:var(--warn);padding:6px 8px}
+label{display:block;font-size:13px;color:var(--mute);margin:12px 0 5px}
+select,input[type=text],input[type=password]{width:100%;padding:11px;border-radius:10px;border:1px solid var(--line);background:var(--soft);color:var(--ink);font:inherit;-webkit-appearance:none}
+.btn{display:inline-block;padding:11px 16px;border-radius:10px;background:var(--accent);color:var(--accent-ink);font-weight:600;margin-top:14px}
+.btn.ghost{background:var(--soft);color:var(--ink);border:1px solid var(--line);margin-left:8px}
+.found{margin-top:12px;font-size:14px;color:var(--mute)}
+.found .tag{margin:3px 4px 0 0;display:inline-block}
+hr{border:0;border-top:1px solid var(--line);margin:18px 0 6px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="main">
+    <div class="top">
+      <button class="model-btn" id="modelBtn"><b id="mName">Modelo</b><small id="mProv"></small><i>&#9660;</i></button>
+      <div class="sp"></div>
+      <button class="ibtn" id="themeBtn" title="Claro / escuro">&#9790;</button>
+      <button class="ibtn" id="keysBtn" title="Chaves de API">&#9881;</button>
+      <button class="ibtn on" id="histBtn" title="Histórico">&#9776;</button>
+    </div>
+    <div class="msgs" id="msgs"></div>
+    <div class="comp">
+      <div class="box">
+        <div class="chips" id="chips"></div>
+        <div class="row">
+          <button class="attach" id="attach" title="Anexar imagem">&#128206;</button>
+          <textarea id="inp" placeholder="Escreva uma mensagem"></textarea>
+          <button class="send" id="send">&#10148;</button>
+        </div>
+      </div>
+      <div class="hint" id="hint"></div>
+    </div>
+  </div>
+
+  <div class="side" id="side">
+    <div class="hd"><h3>Conversas</h3></div>
+    <button class="new" id="newChat">+ Nova conversa</button>
+    <div class="list" id="list"></div>
+  </div>
+</div>
+
+<div class="ov" id="ovModel"><div class="pop" id="popModel"></div></div>
+
+<div class="ov" id="ovKeys"><div class="modal">
+  <h2>Chaves de API</h2>
+  <div id="keyList"></div>
+  <hr>
+  <h2 style="margin-top:14px">Adicionar chave</h2>
+  <label>Provedor</label>
+  <select id="fProv"></select>
+  <div id="customBox" style="display:none">
+    <label>Nome do provedor</label>
+    <input type="text" id="fCName" placeholder="Ex.: Meu servidor">
+    <label>URL base (compatível com OpenAI)</label>
+    <input type="text" id="fUrl" placeholder="Ex.: http://192.168.0.10:11434/v1">
+    <label>Modelos manuais (opcional, separados por vírgula)</label>
+    <input type="text" id="fManual" placeholder="Deixe vazio para buscar automaticamente">
+  </div>
+  <label>Apelido (opcional)</label>
+  <input type="text" id="fName" placeholder="Ex.: OpenRouter conta 2">
+  <label>Chave de API</label>
+  <input type="password" id="fKey" placeholder="Cole a chave aqui">
+  <div class="found" id="found"></div>
+  <button class="btn" id="fAdd">Buscar modelos e salvar</button>
+  <button class="btn ghost" id="fClose">Fechar</button>
+</div></div>
+
+<script src="app.js"></script>
+</body>
+</html>
